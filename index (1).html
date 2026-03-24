@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dataset Analyzer · AI Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #111118;
+      --border:    #1e1e2e;
+      --accent:    #00e5a0;
+      --accent2:   #7c6aff;
+      --text:      #e8e8f0;
+      --muted:     #5a5a7a;
+      --danger:    #ff5e7a;
+      --mono:      'DM Mono', monospace;
+      --sans:      'Syne', sans-serif;
+      --radius:    12px;
+      --transition: 0.22s cubic-bezier(.4,0,.2,1);
+    }
+
+    html { font-size: 16px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Noise overlay ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Gradient glow blobs ── */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.12;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob-1 { width: 500px; height: 500px; background: var(--accent2); top: -150px; left: -100px; }
+    .blob-2 { width: 400px; height: 400px; background: var(--accent);  bottom: -100px; right: -80px; }
+
+    /* ── Layout ── */
+    main {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 780px;
+      padding: 60px 24px 80px;
+    }
+
+    /* ── Header ── */
+    header { margin-bottom: 48px; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 11px;
+      color: var(--accent); letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+      border-radius: 100px;
+      padding: 4px 12px;
+      margin-bottom: 20px;
+    }
+    .badge span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+    h1 em { font-style: normal; color: var(--accent); }
+    .subtitle {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 480px;
+    }
+
+    /* ── Config row ── */
+    .config-row {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .config-row label { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+    .config-row input {
+      flex: 1; min-width: 200px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+    .config-row input:focus { border-color: var(--accent2); }
+    .config-row input::placeholder { color: var(--muted); }
+
+    /* ── Drop zone ── */
+    #dropzone {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 52px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+      position: relative;
+    }
+    #dropzone:hover, #dropzone.drag-over {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 4%, transparent);
+    }
+    #dropzone input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+    .drop-icon {
+      width: 48px; height: 48px;
+      margin: 0 auto 16px;
+      background: color-mix(in srgb, var(--accent2) 15%, transparent);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .drop-icon svg { width: 22px; height: 22px; stroke: var(--accent2); }
+    .drop-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .drop-sub { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+    #file-name {
+      margin-top: 10px;
+      font-family: var(--mono); font-size: 12px;
+      color: var(--accent); display: none;
+    }
+
+    /* ── Analyze button ── */
+    #analyze-btn {
+      margin-top: 20px;
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: #000;
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: opacity var(--transition), transform var(--transition);
+      letter-spacing: 0.02em;
+    }
+    #analyze-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    #analyze-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    /* ── Status bar ── */
+    #status {
+      margin-top: 16px;
+      font-family: var(--mono); font-size: 12px;
+      color: var(--muted); min-height: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #status.error { color: var(--danger); }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0; display: none;
+    }
+    #status.loading .spinner { display: block; }
+
+    /* ── Result panel ── */
+    #result-section {
+      margin-top: 36px;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      pointer-events: none;
+    }
+    #result-section.visible { opacity: 1; transform: none; pointer-events: auto; }
+
+    .result-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .result-label {
+      font-family: var(--mono); font-size: 11px;
+      color: var(--accent); text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    #copy-btn {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); font-family: var(--mono); font-size: 11px;
+      padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    #copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    #output {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.75;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    #output::-webkit-scrollbar { width: 6px; }
+    #output::-webkit-scrollbar-track { background: transparent; }
+    #output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Animations ── */
+    @keyframes spin  { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <main>
+    <header>
+      <div class="badge"><span></span> AI Agent · LangChain + FAISS</div>
+      <h1>Dataset <em>Analyzer</em></h1>
+      <p class="subtitle">Drop any CSV. The agent runs statistical profiling, correlation detection, and semantic search — then surfaces what actually matters.</p>
+    </header>
+
+    <!-- Backend URL config -->
+    <div class="config-row">
+      <label>BACKEND URL</label>
+      <input type="text" id="backend-url" placeholder="http://localhost:8000" />
+    </div>
+
+    <!-- Drop zone -->
+    <div id="dropzone">
+      <input type="file" id="fileInput" accept=".csv" />
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="drop-title">Drop your CSV here</div>
+      <div class="drop-sub">or click to browse · max 10 MB</div>
+      <div id="file-name"></div>
+    </div>
+
+    <button id="analyze-btn" disabled>Analyze Dataset</button>
+
+    <div id="status"><div class="spinner"></div><span id="status-text"></span></div>
+
+    <!-- Results -->
+    <section id="result-section">
+      <div class="result-header">
+        <span class="result-label">// Analysis Output</span>
+        <button id="copy-btn">Copy</button>
+      </div>
+      <pre id="output"></pre>
+    </section>
+  </main>
+
+  <script>
+    const fileInput   = document.getElementById('fileInput');
+    const dropzone    = document.getElementById('dropzone');
+    const fileNameEl  = document.getElementById('file-name');
+    const analyzeBtn  = document.getElementById('analyze-btn');
+    const statusEl    = document.getElementById('status');
+    const statusText  = document.getElementById('status-text');
+    const outputEl    = document.getElementById('output');
+    const resultSec   = document.getElementById('result-section');
+    const copyBtn     = document.getElementById('copy-btn');
+    const backendInput= document.getElementById('backend-url');
+
+    // Persist backend URL
+    const saved = localStorage.getItem('backend_url');
+    if (saved) backendInput.value = saved;
+    backendInput.addEventListener('input', () => localStorage.setItem('backend_url', backendInput.value.trim()));
+
+    // File selection
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) selectFile(fileInput.files[0]);
+    });
+
+    function selectFile(file) {
+      if (!file.name.endsWith('.csv')) { setStatus('Only .csv files are supported.', 'error'); return; }
+      if (file.size > 10 * 1024 * 1024) { setStatus('File too large. Max 10 MB.', 'error'); return; }
+      fileNameEl.textContent = `✓ ${file.name}  (${(file.size / 1024).toFixed(1)} KB)`;
+      fileNameEl.style.display = 'block';
+      analyzeBtn.disabled = false;
+      setStatus('');
+    }
+
+    // Drag-and-drop
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) { fileInput.files = e.dataTransfer.files; selectFile(file); }
+    });
+
+    // Analyze
+    analyzeBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const backend = (backendInput.value.trim() || 'http://localhost:8000').replace(/\/$/, '');
+
+      analyzeBtn.disabled = true;
+      resultSec.classList.remove('visible');
+      setStatus('Uploading and analyzing…', 'loading');
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch(`${backend}/analyze`, { method: 'POST', body: formData });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        outputEl.textContent = data.analysis ?? JSON.stringify(data, null, 2);
+        resultSec.classList.add('visible');
+        setStatus(`Done · ${file.name}`, '');
+      } catch (e) {
+        setStatus(`Error: ${e.message}`, 'error');
+      } finally {
+        analyzeBtn.disabled = false;
+      }
+    });
+
+    // Copy
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(outputEl.textContent).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy', 1800);
+      });
+    });
+
+    function setStatus(msg, type = '') {
+      statusText.textContent = msg;
+      statusEl.className = type;
+    }
+  </script>
+</body>
+</html>

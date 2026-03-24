@@ -1,0 +1,19 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# LangChain core
+langchain>=0.2.0
+langchain-community>=0.2.0
+
+# LLM providers — install only what you use
+langchain-google-genai>=1.0.6
+langchain-anthropic>=0.1.15
+# langchain-openai>=0.1.8     # uncomment if using OpenAI
+
+# Embeddings + vector store
+sentence-transformers>=2.7.0
+faiss-cpu>=1.8.0
+
+# Data
+pandas>=2.2.0
